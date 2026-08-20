@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { callProc } from '../db.js';
+import pool, { callProc } from '../db.js';
 
 const router = Router();
 
@@ -15,8 +15,18 @@ function mapUser(u) {
     role: u.role,
     status: isActive ? 'active' : 'inactive',
     isActive,
-    createdAt: u.created_at ? u.created_at.split(' ')[0] : '',
-    updatedAt: u.updated_at ? u.updated_at.split(' ')[0] : '',
+    createdAt: u.created_at || '',
+    updatedAt: u.updated_at || '',
+    firstName: u.first_name || '',
+    middleName: u.middle_name || '',
+    lastName: u.last_name || '',
+    gender: u.gender || '',
+    contactNumber: u.contact_number || '',
+    phone: u.contact_number || '',
+    address: u.address || '',
+    dateOfBirth: u.date_of_birth || '',
+    civilStatus: u.civil_status || '',
+    submittedAt: u.submitted_at || '',
   };
 }
 
@@ -43,8 +53,9 @@ router.post('/', async (req, res, next) => {
     const { username, password, role, status, isActive } = req.body;
     const fullName = req.body.fullName || req.body.name || [req.body.firstName, req.body.lastName].filter(Boolean).join(' ') || username;
     const activeFlag = status === 'inactive' || isActive === false ? 0 : 1;
+    const rawPassword = password || 'password123';
 
-    const hashedPassword = await bcrypt.hash(password || 'password123', 10);
+    const hashedPassword = await bcrypt.hash(rawPassword, 10);
 
     const rows = await callProc('sp_create_user', [
       username, fullName, hashedPassword, role ?? 'staff', activeFlag,
@@ -56,8 +67,16 @@ router.post('/', async (req, res, next) => {
 // PATCH /api/users/:id
 router.patch('/:id', async (req, res, next) => {
   try {
-    const { username, password, role: _role, status, isActive } = req.body;
-    const fullName = req.body.fullName ?? req.body.name ?? null;
+    const {
+      username, password, currentPassword, role: _role, status, isActive,
+      firstName, middleName, lastName, gender, contactNumber, phone,
+      address, dateOfBirth, civilStatus,
+    } = req.body;
+
+    let computedFullName = req.body.fullName ?? req.body.name ?? null;
+    if (!computedFullName && (firstName || lastName)) {
+      computedFullName = [firstName, middleName, lastName].filter(Boolean).join(' ');
+    }
 
     let activeFlag = null;
     if (status !== undefined) {
@@ -68,15 +87,40 @@ router.patch('/:id', async (req, res, next) => {
 
     let hashedPassword = null;
     if (password && password.trim().length > 0) {
+      if (!currentPassword) {
+        return res.status(400).json({ error: 'Current password is required to change password.' });
+      }
+      const [existingUsers] = await pool.query('SELECT password FROM users WHERE id = ?', [req.params.id]);
+      if (!existingUsers || existingUsers.length === 0) {
+        return res.status(404).json({ error: 'User not found.' });
+      }
+      const existingUser = existingUsers[0];
+      let isMatch = false;
+      if (existingUser.password && (existingUser.password.startsWith('$2a$') || existingUser.password.startsWith('$2b$') || existingUser.password.startsWith('$2y$'))) {
+        isMatch = await bcrypt.compare(currentPassword, existingUser.password);
+      } else {
+        isMatch = existingUser.password === currentPassword;
+      }
+      if (!isMatch) {
+        return res.status(400).json({ error: 'Current password is incorrect.' });
+      }
       hashedPassword = await bcrypt.hash(password, 10);
     }
 
     const rows = await callProc('sp_update_user', [
       req.params.id,
-      fullName,
+      computedFullName,
       username ?? null,
       hashedPassword,
       activeFlag,
+      firstName ?? null,
+      middleName ?? null,
+      lastName ?? null,
+      gender ?? null,
+      contactNumber ?? phone ?? null,
+      address ?? null,
+      dateOfBirth ?? null,
+      civilStatus ?? null,
     ]);
     res.json(mapUser(rows[0]));
   } catch (err) { next(err); }

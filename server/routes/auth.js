@@ -38,6 +38,16 @@ router.post('/login', async (req, res, next) => {
         isActive,
         createdAt: user.created_at || '',
         updatedAt: user.updated_at || '',
+        firstName: user.first_name || '',
+        middleName: user.middle_name || '',
+        lastName: user.last_name || '',
+        gender: user.gender || '',
+        contactNumber: user.contact_number || '',
+        phone: user.contact_number || '',
+        address: user.address || '',
+        dateOfBirth: user.date_of_birth || '',
+        civilStatus: user.civil_status || '',
+        submittedAt: user.submitted_at || '',
       }
     });
   } catch (err) { next(err); }

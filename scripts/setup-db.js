@@ -46,6 +46,8 @@ async function main() {
       console.log('✅ Schema and tables created successfully.');
     }
 
+
+
     // 2. Run procedures.sql
     const procPath = path.join(rootDir, 'database', 'procedures.sql');
     if (fs.existsSync(procPath)) {

@@ -12,11 +12,16 @@ DELIMITER $$
 DROP PROCEDURE IF EXISTS sp_login $$
 CREATE PROCEDURE sp_login(IN p_username VARCHAR(100))
 BEGIN
-    SELECT id, username, full_name, password, role, is_active,
-           DATE_FORMAT(created_at,'%Y-%m-%d %H:%i:%s') AS created_at,
-           DATE_FORMAT(updated_at,'%Y-%m-%d %H:%i:%s') AS updated_at
-    FROM users
-    WHERE username = p_username AND is_active = 1
+    SELECT u.id, u.username, u.full_name, u.password, u.role, u.is_active,
+           DATE_FORMAT(u.created_at,'%Y-%m-%d %H:%i:%s') AS created_at,
+           DATE_FORMAT(u.updated_at,'%Y-%m-%d %H:%i:%s') AS updated_at,
+           r.first_name, r.middle_name, r.last_name, r.gender, r.contact_number, r.address,
+           DATE_FORMAT(r.date_of_birth,'%Y-%m-%d') AS date_of_birth,
+           r.civil_status,
+           DATE_FORMAT(r.submitted_at,'%Y-%m-%d') AS submitted_at
+    FROM users u
+    LEFT JOIN registration_requests r ON r.approved_user_id = u.id
+    WHERE u.username = p_username AND u.is_active = 1
     LIMIT 1;
 END $$
 
@@ -27,21 +32,31 @@ END $$
 DROP PROCEDURE IF EXISTS sp_get_all_users $$
 CREATE PROCEDURE sp_get_all_users()
 BEGIN
-    SELECT id, username, full_name, role, is_active,
-           DATE_FORMAT(created_at,'%Y-%m-%d %H:%i:%s') AS created_at,
-           DATE_FORMAT(updated_at,'%Y-%m-%d %H:%i:%s') AS updated_at
-    FROM users
-    ORDER BY created_at DESC;
+    SELECT u.id, u.username, u.full_name, u.role, u.is_active,
+           DATE_FORMAT(u.created_at,'%Y-%m-%d %H:%i:%s') AS created_at,
+           DATE_FORMAT(u.updated_at,'%Y-%m-%d %H:%i:%s') AS updated_at,
+           r.first_name, r.middle_name, r.last_name, r.gender, r.contact_number, r.address,
+           DATE_FORMAT(r.date_of_birth,'%Y-%m-%d') AS date_of_birth,
+           r.civil_status,
+           DATE_FORMAT(r.submitted_at,'%Y-%m-%d') AS submitted_at
+    FROM users u
+    LEFT JOIN registration_requests r ON r.approved_user_id = u.id
+    ORDER BY u.created_at DESC;
 END $$
 
 DROP PROCEDURE IF EXISTS sp_get_user_by_id $$
 CREATE PROCEDURE sp_get_user_by_id(IN p_id INT)
 BEGIN
-    SELECT id, username, full_name, role, is_active,
-           DATE_FORMAT(created_at,'%Y-%m-%d %H:%i:%s') AS created_at,
-           DATE_FORMAT(updated_at,'%Y-%m-%d %H:%i:%s') AS updated_at
-    FROM users
-    WHERE id = p_id;
+    SELECT u.id, u.username, u.full_name, u.role, u.is_active,
+           DATE_FORMAT(u.created_at,'%Y-%m-%d %H:%i:%s') AS created_at,
+           DATE_FORMAT(u.updated_at,'%Y-%m-%d %H:%i:%s') AS updated_at,
+           r.first_name, r.middle_name, r.last_name, r.gender, r.contact_number, r.address,
+           DATE_FORMAT(r.date_of_birth,'%Y-%m-%d') AS date_of_birth,
+           r.civil_status,
+           DATE_FORMAT(r.submitted_at,'%Y-%m-%d') AS submitted_at
+    FROM users u
+    LEFT JOIN registration_requests r ON r.approved_user_id = u.id
+    WHERE u.id = p_id;
 END $$
 
 DROP PROCEDURE IF EXISTS sp_create_user $$
@@ -60,11 +75,19 @@ END $$
 
 DROP PROCEDURE IF EXISTS sp_update_user $$
 CREATE PROCEDURE sp_update_user(
-    IN p_id         INT,
-    IN p_full_name  VARCHAR(150),
-    IN p_username   VARCHAR(100),
-    IN p_password   VARCHAR(255),
-    IN p_is_active  TINYINT(1)
+    IN p_id             INT,
+    IN p_full_name      VARCHAR(150),
+    IN p_username       VARCHAR(100),
+    IN p_password       VARCHAR(255),
+    IN p_is_active      TINYINT(1),
+    IN p_first_name     VARCHAR(80),
+    IN p_middle_name    VARCHAR(80),
+    IN p_last_name      VARCHAR(80),
+    IN p_gender         VARCHAR(30),
+    IN p_contact_number VARCHAR(30),
+    IN p_address        VARCHAR(300),
+    IN p_date_of_birth  VARCHAR(30),
+    IN p_civil_status   VARCHAR(30)
 )
 BEGIN
     UPDATE users
@@ -73,6 +96,22 @@ BEGIN
         password  = COALESCE(p_password,  password),
         is_active = COALESCE(p_is_active, is_active)
     WHERE id = p_id;
+
+    IF p_first_name IS NOT NULL OR p_last_name IS NOT NULL OR p_contact_number IS NOT NULL OR p_address IS NOT NULL OR p_date_of_birth IS NOT NULL OR p_gender IS NOT NULL OR p_civil_status IS NOT NULL THEN
+        IF EXISTS (SELECT 1 FROM registration_requests WHERE approved_user_id = p_id) THEN
+            UPDATE registration_requests
+            SET first_name     = COALESCE(p_first_name, first_name),
+                middle_name    = COALESCE(p_middle_name, middle_name),
+                last_name      = COALESCE(p_last_name, last_name),
+                gender         = COALESCE(p_gender, gender),
+                contact_number = COALESCE(p_contact_number, contact_number),
+                address        = COALESCE(p_address, address),
+                date_of_birth  = IF(p_date_of_birth IS NOT NULL AND p_date_of_birth != '', STR_TO_DATE(p_date_of_birth, '%Y-%m-%d'), date_of_birth),
+                civil_status   = COALESCE(p_civil_status, civil_status)
+            WHERE approved_user_id = p_id;
+        END IF;
+    END IF;
+
     CALL sp_get_user_by_id(p_id);
 END $$
 
