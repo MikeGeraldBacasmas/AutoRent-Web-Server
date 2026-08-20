@@ -1,0 +1,23 @@
+{
+  "name": "autorent-web-server",
+  "version": "1.0.0",
+  "description": "Backend API server and database for AutoRent",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "nodemon server/index.js",
+    "setup-db": "node scripts/setup-db.js",
+    "clean-db": "node scripts/clean-mock-data.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "mysql2": "^3.12.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
+}
