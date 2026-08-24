@@ -12,6 +12,8 @@ import rentalsRoutes       from './routes/rentals.js';
 import maintenanceRoutes   from './routes/maintenance.js';
 import damageRoutes        from './routes/damage.js';
 import notificationsRoutes from './routes/notifications.js';
+import billingRoutes from './routes/billing.js';
+import chargesRoutes from './routes/charges.js';
 
 const app  = express();
 const PORT = process.env.SERVER_PORT || 4000;
@@ -32,6 +34,8 @@ app.use('/api/rentals',       rentalsRoutes);
 app.use('/api/maintenance',   maintenanceRoutes);
 app.use('/api/damage-reports',damageRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/billings', billingRoutes);
+app.use('/api/charges', chargesRoutes);
 
 // Global error handler
 app.use((err, _req, res, _next) => {

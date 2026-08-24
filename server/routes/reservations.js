@@ -17,6 +17,7 @@ function mapReservation(r) {
     returnLocation: r.return_location ?? r.returnLocation ?? '',
     totalAmount: Number(r.total_amount ?? r.totalAmount ?? 0),
     status: r.status ?? 'Pending',
+    label: r.label ?? 'In Process',
     gracePeriodMinutes: Number(r.grace_period_minutes ?? r.gracePeriodMinutes ?? 30),
     actualPickupTime: r.actual_pickup_time ?? r.actualPickupTime ?? undefined,
     noShowAt: r.no_show_at ?? r.noShowAt ?? undefined,
@@ -59,10 +60,11 @@ router.post('/', async (req, res, next) => {
 // PATCH /api/reservations/:id
 router.patch('/:id', async (req, res, next) => {
   try {
-    const { status, gracePeriodMinutes, actualPickupTime, noShowAt, noShowReason } = req.body;
+    const { status, label, gracePeriodMinutes, actualPickupTime, noShowAt, noShowReason } = req.body;
     const rows = await callProc('sp_update_reservation', [
       req.params.id,
       status ?? null,
+      label ?? null,
       gracePeriodMinutes ?? null,
       actualPickupTime ?? null,
       noShowAt ?? null,

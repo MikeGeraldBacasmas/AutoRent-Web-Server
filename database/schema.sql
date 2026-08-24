@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS reservations (
     return_location     VARCHAR(200)  NOT NULL,
     total_amount        DECIMAL(10,2) NOT NULL,
     status              ENUM('Pending','Approved','Reserved','Rejected','Cancelled','No-Show','Completed') NOT NULL DEFAULT 'Pending',
+    label               ENUM('In Process','In Use','Returned') NOT NULL DEFAULT 'In Process',
     grace_period_minutes SMALLINT     NOT NULL DEFAULT 30,
     actual_pickup_time  DATETIME      NULL,
     no_show_at          DATETIME      NULL,
@@ -100,6 +101,46 @@ CREATE TABLE IF NOT EXISTS reservations (
     FOREIGN KEY (vehicle_id)  REFERENCES vehicles(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS billings (
+    id             VARCHAR(36) NOT NULL,
+    reservation_id VARCHAR(36) NOT NULL UNIQUE,
+    customer_id    INT UNSIGNED NOT NULL,
+    total_amount   DECIMAL(10,2) NOT NULL,
+    status         ENUM('Unpaid','Paid') NOT NULL DEFAULT 'Unpaid',
+    created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    INDEX idx_billings_customer (customer_id),
+    FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE,
+    FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS payments (
+    id         VARCHAR(36) NOT NULL,
+    billing_id VARCHAR(36) NOT NULL,
+    customer_id INT UNSIGNED NOT NULL,
+    amount     DECIMAL(10,2) NOT NULL,
+    change_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    payment_method VARCHAR(30) NOT NULL DEFAULT 'Cash',
+    paid_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    INDEX idx_payments_customer (customer_id),
+    FOREIGN KEY (billing_id) REFERENCES billings(id) ON DELETE CASCADE,
+    FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+SET @add_reservation_label = (
+    SELECT IF(
+        COUNT(*) = 0,
+        'ALTER TABLE reservations ADD COLUMN label ENUM(\'In Process\',\'In Use\',\'Returned\') NOT NULL DEFAULT \'In Process\' AFTER status',
+        'SELECT 1'
+    )
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND table_name = 'reservations' AND column_name = 'label'
+);
+PREPARE add_reservation_label FROM @add_reservation_label;
+EXECUTE add_reservation_label;
+DEALLOCATE PREPARE add_reservation_label;
+
 -- ------------------------------------------------------------
 -- 5. RENTALS
 -- ------------------------------------------------------------
@@ -111,12 +152,44 @@ CREATE TABLE IF NOT EXISTS rentals (
     expected_return_date DATE         NOT NULL,
     actual_return_date   DATE         NULL,
     status               ENUM('Active','Completed','Overdue') NOT NULL DEFAULT 'Active',
+    balance              ENUM('Fully Paid') NOT NULL DEFAULT 'Fully Paid',
     remarks              TEXT         NULL,
     PRIMARY KEY (id),
     INDEX idx_rentals_status  (status),
     FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE,
     FOREIGN KEY (staff_id)       REFERENCES users(id)        ON DELETE RESTRICT
 ) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS charges (
+    id           VARCHAR(36) NOT NULL,
+    rental_id    VARCHAR(36) NOT NULL,
+    customer_id  INT UNSIGNED NOT NULL,
+    vehicle_id   VARCHAR(36) NOT NULL,
+    description  TEXT NOT NULL,
+    amount       DECIMAL(10,2) NOT NULL,
+    status       ENUM('Unpaid','Paid') NOT NULL DEFAULT 'Unpaid',
+    paid_at      DATETIME NULL,
+    created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_charges_rental (rental_id),
+    INDEX idx_charges_customer (customer_id),
+    FOREIGN KEY (rental_id) REFERENCES rentals(id) ON DELETE CASCADE,
+    FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+SET @add_rental_balance = (
+    SELECT IF(
+        COUNT(*) = 0,
+        'ALTER TABLE rentals ADD COLUMN balance ENUM(\'Fully Paid\') NOT NULL DEFAULT \'Fully Paid\' AFTER status',
+        'SELECT 1'
+    )
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND table_name = 'rentals' AND column_name = 'balance'
+);
+PREPARE add_rental_balance FROM @add_rental_balance;
+EXECUTE add_rental_balance;
+DEALLOCATE PREPARE add_rental_balance;
 
 -- ------------------------------------------------------------
 -- 6. MAINTENANCE

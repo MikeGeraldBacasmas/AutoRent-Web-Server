@@ -13,6 +13,7 @@ function mapRental(r) {
     expectedReturnDate: r.expected_return_date ?? r.expectedReturnDate ?? '',
     actualReturnDate: r.actual_return_date ?? r.actualReturnDate ?? undefined,
     status: r.status ?? 'Active',
+    balance: r.balance ?? 'Fully Paid',
     remarks: r.remarks ?? undefined,
   };
 }

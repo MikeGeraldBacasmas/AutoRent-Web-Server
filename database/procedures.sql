@@ -317,7 +317,7 @@ BEGIN
            TIME_FORMAT(pickup_time,'%H:%i')    AS pickup_time,
            DATE_FORMAT(return_date,'%Y-%m-%d') AS return_date,
            TIME_FORMAT(return_time,'%H:%i')    AS return_time,
-           pickup_location, return_location, total_amount, status,
+           pickup_location, return_location, total_amount, status, label,
            grace_period_minutes, actual_pickup_time, no_show_at,
            no_show_reason, remarks,
            DATE_FORMAT(created_at,'%Y-%m-%d')  AS created_at
@@ -333,7 +333,7 @@ BEGIN
            TIME_FORMAT(pickup_time,'%H:%i')    AS pickup_time,
            DATE_FORMAT(return_date,'%Y-%m-%d') AS return_date,
            TIME_FORMAT(return_time,'%H:%i')    AS return_time,
-           pickup_location, return_location, total_amount, status,
+           pickup_location, return_location, total_amount, status, label,
            grace_period_minutes, actual_pickup_time, no_show_at,
            no_show_reason, remarks,
            DATE_FORMAT(created_at,'%Y-%m-%d')  AS created_at
@@ -356,6 +356,17 @@ CREATE PROCEDURE sp_create_reservation(
 )
 BEGIN
     DECLARE v_id VARCHAR(36);
+    IF EXISTS (
+        SELECT 1
+                FROM reservations existing
+        WHERE existing.customer_id = CAST(p_customer_id AS UNSIGNED)
+                    AND (existing.label = 'In Use' OR EXISTS (
+                            SELECT 1 FROM rentals r
+                            WHERE r.reservation_id = existing.id AND r.status IN ('Active', 'Overdue')
+                    ))
+    ) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Customer already has an active rental and cannot rent another vehicle.';
+    END IF;
     SET v_id = UUID();
     INSERT INTO reservations (id, customer_id, vehicle_id, pickup_date, pickup_time, return_date, return_time,
                               pickup_location, return_location, total_amount, grace_period_minutes, remarks, created_at)
@@ -370,7 +381,14 @@ CREATE PROCEDURE sp_update_reservation_status(
     IN p_status VARCHAR(30)
 )
 BEGIN
-    UPDATE reservations SET status = p_status WHERE id = p_id;
+    UPDATE reservations
+    SET status = p_status,
+        label = CASE
+            WHEN p_status IN ('Pending', 'Approved', 'Reserved') THEN 'In Process'
+            WHEN p_status IN ('Rejected', 'Cancelled', 'No-Show') THEN 'Returned'
+            ELSE label
+        END
+    WHERE id = p_id;
     CALL sp_get_reservation_by_id(p_id);
 END $$
 
@@ -378,6 +396,7 @@ DROP PROCEDURE IF EXISTS sp_update_reservation $$
 CREATE PROCEDURE sp_update_reservation(
     IN p_id                VARCHAR(36),
     IN p_status            VARCHAR(30),
+    IN p_label             VARCHAR(30),
     IN p_grace_period_mins SMALLINT,
     IN p_actual_pickup     DATETIME,
     IN p_no_show_at        DATETIME,
@@ -386,6 +405,7 @@ CREATE PROCEDURE sp_update_reservation(
 BEGIN
     UPDATE reservations
     SET status               = COALESCE(p_status,            status),
+        label                = COALESCE(p_label,             label),
         grace_period_minutes = COALESCE(p_grace_period_mins, grace_period_minutes),
         actual_pickup_time   = COALESCE(p_actual_pickup,     actual_pickup_time),
         no_show_at           = COALESCE(p_no_show_at,        no_show_at),
@@ -405,7 +425,7 @@ BEGIN
            DATE_FORMAT(release_date,'%Y-%m-%d')          AS release_date,
            DATE_FORMAT(expected_return_date,'%Y-%m-%d')  AS expected_return_date,
            DATE_FORMAT(actual_return_date,'%Y-%m-%d')    AS actual_return_date,
-           status, remarks
+           status, balance, remarks
     FROM rentals
     ORDER BY release_date DESC;
 END $$
@@ -417,7 +437,7 @@ BEGIN
            DATE_FORMAT(release_date,'%Y-%m-%d')          AS release_date,
            DATE_FORMAT(expected_return_date,'%Y-%m-%d')  AS expected_return_date,
            DATE_FORMAT(actual_return_date,'%Y-%m-%d')    AS actual_return_date,
-           status, remarks
+           status, balance, remarks
     FROM rentals WHERE id = p_id;
 END $$
 
@@ -432,8 +452,8 @@ CREATE PROCEDURE sp_create_rental(
 BEGIN
     DECLARE v_id VARCHAR(36);
     SET v_id = UUID();
-    INSERT INTO rentals (id, reservation_id, staff_id, release_date, expected_return_date, remarks)
-    VALUES (v_id, p_reservation_id, p_staff_id, p_release_date, p_expected_return_date, p_remarks);
+    INSERT INTO rentals (id, reservation_id, staff_id, release_date, expected_return_date, balance, remarks)
+    VALUES (v_id, p_reservation_id, p_staff_id, p_release_date, p_expected_return_date, 'Fully Paid', p_remarks);
     CALL sp_get_rental_by_id(v_id);
 END $$
 
@@ -445,17 +465,105 @@ CREATE PROCEDURE sp_update_rental(
     IN p_remarks            TEXT
 )
 BEGIN
+    DECLARE v_reservation_id VARCHAR(36);
+    SELECT reservation_id INTO v_reservation_id FROM rentals WHERE id = p_id;
     UPDATE rentals
     SET actual_return_date = COALESCE(p_actual_return_date, actual_return_date),
         status             = COALESCE(p_status,             status),
         remarks            = COALESCE(p_remarks,            remarks)
     WHERE id = p_id;
+    IF p_status = 'Completed' THEN
+        UPDATE reservations SET label = 'Returned' WHERE id = v_reservation_id;
+    END IF;
     CALL sp_get_rental_by_id(p_id);
 END $$
 
 -- ============================================================
 -- MAINTENANCE
 -- ============================================================
+
+DROP PROCEDURE IF EXISTS sp_get_all_charges $$
+CREATE PROCEDURE sp_get_all_charges()
+BEGIN
+    SELECT id, rental_id, customer_id, vehicle_id, description, amount, status,
+           DATE_FORMAT(paid_at, '%Y-%m-%d %H:%i:%s') AS paid_at,
+           DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at
+    FROM charges ORDER BY created_at DESC;
+END $$
+
+DROP PROCEDURE IF EXISTS sp_create_charge $$
+CREATE PROCEDURE sp_create_charge(
+    IN p_rental_id VARCHAR(36), IN p_customer_id INT, IN p_vehicle_id VARCHAR(36),
+    IN p_description TEXT, IN p_amount DECIMAL(10,2)
+)
+BEGIN
+    DECLARE v_id VARCHAR(36);
+    SET v_id = UUID();
+    INSERT INTO charges (id, rental_id, customer_id, vehicle_id, description, amount)
+    VALUES (v_id, p_rental_id, p_customer_id, p_vehicle_id, p_description, p_amount)
+    ON DUPLICATE KEY UPDATE description = VALUES(description), amount = VALUES(amount);
+    SELECT id, rental_id, customer_id, vehicle_id, description, amount, status,
+           DATE_FORMAT(paid_at, '%Y-%m-%d %H:%i:%s') AS paid_at,
+           DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at
+    FROM charges WHERE rental_id = p_rental_id;
+END $$
+
+DROP PROCEDURE IF EXISTS sp_pay_charge $$
+CREATE PROCEDURE sp_pay_charge(IN p_id VARCHAR(36))
+BEGIN
+    UPDATE charges SET status = 'Paid', paid_at = NOW() WHERE id = p_id;
+    SELECT id, rental_id, customer_id, vehicle_id, description, amount, status,
+           DATE_FORMAT(paid_at, '%Y-%m-%d %H:%i:%s') AS paid_at,
+           DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at
+    FROM charges WHERE id = p_id;
+END $$
+
+DROP PROCEDURE IF EXISTS sp_get_all_billings $$
+CREATE PROCEDURE sp_get_all_billings()
+BEGIN
+    SELECT b.id, b.reservation_id, b.customer_id, b.total_amount, b.status,
+           DATE_FORMAT(b.created_at, '%Y-%m-%d %H:%i:%s') AS created_at
+    FROM billings b ORDER BY b.created_at DESC;
+END $$
+
+DROP PROCEDURE IF EXISTS sp_create_billing $$
+CREATE PROCEDURE sp_create_billing(
+    IN p_reservation_id VARCHAR(36), IN p_customer_id INT, IN p_total_amount DECIMAL(10,2)
+)
+BEGIN
+    DECLARE v_id VARCHAR(36);
+    SET v_id = UUID();
+    INSERT INTO billings (id, reservation_id, customer_id, total_amount)
+    VALUES (v_id, p_reservation_id, p_customer_id, p_total_amount)
+    ON DUPLICATE KEY UPDATE total_amount = VALUES(total_amount);
+    SELECT id, reservation_id, customer_id, total_amount, status,
+           DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at
+    FROM billings WHERE reservation_id = p_reservation_id;
+END $$
+
+DROP PROCEDURE IF EXISTS sp_get_all_payments $$
+CREATE PROCEDURE sp_get_all_payments()
+BEGIN
+    SELECT id, billing_id, customer_id, amount, change_amount, payment_method,
+           DATE_FORMAT(paid_at, '%Y-%m-%d %H:%i:%s') AS paid_at
+    FROM payments ORDER BY paid_at DESC;
+END $$
+
+DROP PROCEDURE IF EXISTS sp_create_payment $$
+CREATE PROCEDURE sp_create_payment(
+    IN p_billing_id VARCHAR(36), IN p_customer_id INT, IN p_amount DECIMAL(10,2),
+    IN p_change_amount DECIMAL(10,2), IN p_payment_method VARCHAR(30)
+)
+BEGIN
+    DECLARE v_id VARCHAR(36);
+    SET v_id = UUID();
+    INSERT INTO payments (id, billing_id, customer_id, amount, change_amount, payment_method)
+    VALUES (v_id, p_billing_id, p_customer_id, p_amount, p_change_amount, p_payment_method);
+    UPDATE billings SET status = 'Paid' WHERE id = p_billing_id;
+    SELECT id, billing_id, customer_id, amount, change_amount, payment_method,
+           DATE_FORMAT(paid_at, '%Y-%m-%d %H:%i:%s') AS paid_at
+    FROM payments WHERE id = v_id;
+END $$
 
 DROP PROCEDURE IF EXISTS sp_get_all_maintenance $$
 CREATE PROCEDURE sp_get_all_maintenance()
