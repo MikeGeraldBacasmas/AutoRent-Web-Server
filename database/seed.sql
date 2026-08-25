@@ -48,3 +48,16 @@ ON DUPLICATE KEY UPDATE
 	type = VALUES(type), license_plate = VALUES(license_plate), seats = VALUES(seats),
 	transmission = VALUES(transmission), fuel_type = VALUES(fuel_type), price_per_day = VALUES(price_per_day),
 	description = VALUES(description), image = VALUES(image), status = VALUES(status);
+
+-- Initial Maintenance Records
+INSERT INTO maintenance
+	(id, vehicle_id, reported_by, description, maintenance_date, cost, status)
+VALUES
+	('seed-maint-001', 'seed-vehicle-004', 'James Ronolo', 'Brake pad replacement and 20,000 km PMS service', CURDATE(), 3500.00, 'In Progress'),
+	('seed-maint-002', 'seed-vehicle-005', 'James Ronolo', 'Transmission fluid flush and suspension bushing check', CURDATE(), 5800.00, 'Pending'),
+	('seed-maint-003', 'seed-vehicle-007', 'James Ronolo', 'CVT drive belt maintenance and tire replacement', CURDATE(), 1450.00, 'In Progress')
+ON DUPLICATE KEY UPDATE
+	vehicle_id = VALUES(vehicle_id), reported_by = VALUES(reported_by),
+	description = VALUES(description), maintenance_date = VALUES(maintenance_date),
+	cost = VALUES(cost), status = VALUES(status);
+

@@ -62,8 +62,9 @@ CREATE TABLE IF NOT EXISTS vehicles (
     fuel_type     ENUM('Gasoline','Diesel','Electric','Hybrid') NOT NULL,
     price_per_day DECIMAL(10,2) NOT NULL,
     description   TEXT         NULL,
-    image         VARCHAR(500) NULL,
+    image         MEDIUMTEXT   NULL,
     status        ENUM('Available','Reserved','Rented','Maintenance','Unavailable') NOT NULL DEFAULT 'Available',
+
     created_at    DATE         NOT NULL,
     PRIMARY KEY (id),
     INDEX idx_vehicles_status (status),

@@ -249,7 +249,7 @@ CREATE PROCEDURE sp_create_vehicle(
     IN p_fuel_type     VARCHAR(20),
     IN p_price_per_day DECIMAL(10,2),
     IN p_description   TEXT,
-    IN p_image         VARCHAR(500),
+    IN p_image         MEDIUMTEXT,
     IN p_status        VARCHAR(30)
 )
 BEGIN
@@ -276,9 +276,10 @@ CREATE PROCEDURE sp_update_vehicle(
     IN p_fuel_type     VARCHAR(20),
     IN p_price_per_day DECIMAL(10,2),
     IN p_description   TEXT,
-    IN p_image         VARCHAR(500),
+    IN p_image         MEDIUMTEXT,
     IN p_status        VARCHAR(30)
 )
+
 BEGIN
     UPDATE vehicles
     SET name          = COALESCE(p_name,          name),
@@ -603,23 +604,47 @@ END $$
 
 DROP PROCEDURE IF EXISTS sp_update_maintenance $$
 CREATE PROCEDURE sp_update_maintenance(
-    IN p_id     VARCHAR(36),
-    IN p_status VARCHAR(30),
-    IN p_cost   DECIMAL(10,2)
+    IN p_id          VARCHAR(36),
+    IN p_status      VARCHAR(30),
+    IN p_cost        DECIMAL(10,2),
+    IN p_description TEXT
 )
 BEGIN
     DECLARE v_vehicle_id VARCHAR(36);
     UPDATE maintenance
-    SET status = COALESCE(p_status, status),
-        cost   = COALESCE(p_cost,   cost)
+    SET status      = COALESCE(p_status,      status),
+        cost        = COALESCE(p_cost,        cost),
+        description = COALESCE(p_description, description)
     WHERE id = p_id;
 
+    SELECT vehicle_id INTO v_vehicle_id FROM maintenance WHERE id = p_id;
     IF p_status = 'Completed' THEN
-        SELECT vehicle_id INTO v_vehicle_id FROM maintenance WHERE id = p_id;
-        UPDATE vehicles SET status = 'Available' WHERE id = v_vehicle_id;
+        -- Only set vehicle Available if there are no other active (Pending / In Progress) maintenance jobs
+        IF (SELECT COUNT(*) FROM maintenance WHERE vehicle_id = v_vehicle_id AND status != 'Completed' AND id != p_id) = 0 THEN
+            UPDATE vehicles SET status = 'Available' WHERE id = v_vehicle_id;
+        END IF;
+    ELSEIF p_status IN ('Pending', 'In Progress') THEN
+        UPDATE vehicles SET status = 'Maintenance' WHERE id = v_vehicle_id;
     END IF;
+
     CALL sp_get_maintenance_by_id(p_id);
 END $$
+
+DROP PROCEDURE IF EXISTS sp_delete_maintenance $$
+CREATE PROCEDURE sp_delete_maintenance(IN p_id VARCHAR(36))
+BEGIN
+    DECLARE v_vehicle_id VARCHAR(36);
+    SELECT vehicle_id INTO v_vehicle_id FROM maintenance WHERE id = p_id;
+    DELETE FROM maintenance WHERE id = p_id;
+
+    IF v_vehicle_id IS NOT NULL THEN
+        IF (SELECT COUNT(*) FROM maintenance WHERE vehicle_id = v_vehicle_id AND status != 'Completed') = 0 THEN
+            UPDATE vehicles SET status = 'Available' WHERE id = v_vehicle_id AND status = 'Maintenance';
+        END IF;
+    END IF;
+    SELECT 1 AS success;
+END $$
+
 
 -- ============================================================
 -- DAMAGE REPORTS
