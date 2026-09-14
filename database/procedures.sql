@@ -321,6 +321,9 @@ BEGIN
            pickup_location, return_location, total_amount, status, label,
            grace_period_minutes, actual_pickup_time, no_show_at,
            no_show_reason, remarks,
+           license_number, license_type,
+           DATE_FORMAT(license_expiry,'%Y-%m-%d') AS license_expiry,
+           license_front_url, license_back_url,
            DATE_FORMAT(created_at,'%Y-%m-%d')  AS created_at
     FROM reservations
     ORDER BY created_at DESC;
@@ -337,6 +340,9 @@ BEGIN
            pickup_location, return_location, total_amount, status, label,
            grace_period_minutes, actual_pickup_time, no_show_at,
            no_show_reason, remarks,
+           license_number, license_type,
+           DATE_FORMAT(license_expiry,'%Y-%m-%d') AS license_expiry,
+           license_front_url, license_back_url,
            DATE_FORMAT(created_at,'%Y-%m-%d')  AS created_at
     FROM reservations WHERE id = p_id;
 END $$
@@ -353,7 +359,12 @@ CREATE PROCEDURE sp_create_reservation(
     IN p_return_location   VARCHAR(200),
     IN p_total_amount      DECIMAL(10,2),
     IN p_grace_period_mins SMALLINT,
-    IN p_remarks           TEXT
+    IN p_remarks           TEXT,
+    IN p_license_number    VARCHAR(50),
+    IN p_license_type      VARCHAR(50),
+    IN p_license_expiry    DATE,
+    IN p_license_front_url VARCHAR(500),
+    IN p_license_back_url  VARCHAR(500)
 )
 BEGIN
     DECLARE v_id VARCHAR(36);
@@ -368,11 +379,26 @@ BEGIN
     ) THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Customer already has an active rental and cannot rent another vehicle.';
     END IF;
+
+    -- Prevent overlapping reservations for the same vehicle
+    IF EXISTS (
+        SELECT 1
+        FROM reservations existing
+        WHERE existing.vehicle_id = p_vehicle_id
+          AND existing.status IN ('Approved', 'Reserved')
+          AND existing.pickup_date < p_return_date
+          AND existing.return_date > p_pickup_date
+    ) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'This vehicle is already reserved for the selected dates. Please choose different dates.';
+    END IF;
+
     SET v_id = UUID();
     INSERT INTO reservations (id, customer_id, vehicle_id, pickup_date, pickup_time, return_date, return_time,
-                              pickup_location, return_location, total_amount, grace_period_minutes, remarks, created_at)
+                              pickup_location, return_location, total_amount, grace_period_minutes, remarks,
+                              license_number, license_type, license_expiry, license_front_url, license_back_url, created_at)
     VALUES (v_id, p_customer_id, p_vehicle_id, p_pickup_date, p_pickup_time, p_return_date, p_return_time,
-            p_pickup_location, p_return_location, p_total_amount, p_grace_period_mins, p_remarks, CURDATE());
+            p_pickup_location, p_return_location, p_total_amount, p_grace_period_mins, p_remarks,
+            p_license_number, p_license_type, p_license_expiry, p_license_front_url, p_license_back_url, CURDATE());
     CALL sp_get_reservation_by_id(v_id);
 END $$
 
@@ -382,6 +408,21 @@ CREATE PROCEDURE sp_update_reservation_status(
     IN p_status VARCHAR(30)
 )
 BEGIN
+    IF p_status = 'Approved' THEN
+        IF EXISTS (
+            SELECT 1
+            FROM reservations r_target
+            JOIN reservations existing ON existing.vehicle_id = r_target.vehicle_id
+            WHERE r_target.id = p_id
+              AND existing.id != p_id
+              AND existing.status IN ('Approved', 'Reserved')
+              AND existing.pickup_date < r_target.return_date
+              AND existing.return_date > r_target.pickup_date
+        ) THEN
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cannot approve: vehicle is already booked for overlapping dates by another reservation.';
+        END IF;
+    END IF;
+
     UPDATE reservations
     SET status = p_status,
         label = CASE
@@ -426,7 +467,8 @@ BEGIN
            DATE_FORMAT(release_date,'%Y-%m-%d')          AS release_date,
            DATE_FORMAT(expected_return_date,'%Y-%m-%d')  AS expected_return_date,
            DATE_FORMAT(actual_return_date,'%Y-%m-%d')    AS actual_return_date,
-           status, balance, remarks
+           status, balance, remarks,
+           start_mileage, end_mileage, start_fuel, end_fuel
     FROM rentals
     ORDER BY release_date DESC;
 END $$
@@ -438,7 +480,8 @@ BEGIN
            DATE_FORMAT(release_date,'%Y-%m-%d')          AS release_date,
            DATE_FORMAT(expected_return_date,'%Y-%m-%d')  AS expected_return_date,
            DATE_FORMAT(actual_return_date,'%Y-%m-%d')    AS actual_return_date,
-           status, balance, remarks
+           status, balance, remarks,
+           start_mileage, end_mileage, start_fuel, end_fuel
     FROM rentals WHERE id = p_id;
 END $$
 
@@ -448,13 +491,15 @@ CREATE PROCEDURE sp_create_rental(
     IN p_staff_id              VARCHAR(36),
     IN p_release_date          DATE,
     IN p_expected_return_date  DATE,
-    IN p_remarks               TEXT
+    IN p_remarks               TEXT,
+    IN p_start_mileage         INT,
+    IN p_start_fuel            VARCHAR(30)
 )
 BEGIN
     DECLARE v_id VARCHAR(36);
     SET v_id = UUID();
-    INSERT INTO rentals (id, reservation_id, staff_id, release_date, expected_return_date, balance, remarks)
-    VALUES (v_id, p_reservation_id, p_staff_id, p_release_date, p_expected_return_date, 'Fully Paid', p_remarks);
+    INSERT INTO rentals (id, reservation_id, staff_id, release_date, expected_return_date, balance, remarks, start_mileage, start_fuel)
+    VALUES (v_id, p_reservation_id, p_staff_id, p_release_date, p_expected_return_date, 'Fully Paid', p_remarks, p_start_mileage, p_start_fuel);
     CALL sp_get_rental_by_id(v_id);
 END $$
 
@@ -463,7 +508,9 @@ CREATE PROCEDURE sp_update_rental(
     IN p_id                 VARCHAR(36),
     IN p_actual_return_date DATE,
     IN p_status             VARCHAR(20),
-    IN p_remarks            TEXT
+    IN p_remarks            TEXT,
+    IN p_end_mileage        INT,
+    IN p_end_fuel           VARCHAR(30)
 )
 BEGIN
     DECLARE v_reservation_id VARCHAR(36);
@@ -471,7 +518,9 @@ BEGIN
     UPDATE rentals
     SET actual_return_date = COALESCE(p_actual_return_date, actual_return_date),
         status             = COALESCE(p_status,             status),
-        remarks            = COALESCE(p_remarks,            remarks)
+        remarks            = COALESCE(p_remarks,            remarks),
+        end_mileage        = COALESCE(p_end_mileage,        end_mileage),
+        end_fuel           = COALESCE(p_end_fuel,           end_fuel)
     WHERE id = p_id;
     IF p_status = 'Completed' THEN
         UPDATE reservations SET label = 'Returned' WHERE id = v_reservation_id;

@@ -92,6 +92,11 @@ CREATE TABLE IF NOT EXISTS reservations (
     no_show_at          DATETIME      NULL,
     no_show_reason      VARCHAR(500)  NULL,
     remarks             TEXT          NULL,
+    license_number      VARCHAR(50)   NULL,
+    license_type        ENUM('Non-Professional','Professional','Student Permit') NULL,
+    license_expiry      DATE          NULL,
+    license_front_url   VARCHAR(500)  NULL,
+    license_back_url    VARCHAR(500)  NULL,
     created_at          DATE          NOT NULL,
     PRIMARY KEY (id),
     INDEX idx_res_customer  (customer_id),
@@ -142,6 +147,19 @@ PREPARE add_reservation_label FROM @add_reservation_label;
 EXECUTE add_reservation_label;
 DEALLOCATE PREPARE add_reservation_label;
 
+SET @add_res_license_cols = (
+    SELECT IF(
+        COUNT(*) = 0,
+        'ALTER TABLE reservations ADD COLUMN license_number VARCHAR(50) NULL, ADD COLUMN license_type ENUM(\'Non-Professional\',\'Professional\',\'Student Permit\') NULL, ADD COLUMN license_expiry DATE NULL, ADD COLUMN license_front_url VARCHAR(500) NULL, ADD COLUMN license_back_url VARCHAR(500) NULL',
+        'SELECT 1'
+    )
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND table_name = 'reservations' AND column_name = 'license_number'
+);
+PREPARE add_res_license_cols FROM @add_res_license_cols;
+EXECUTE add_res_license_cols;
+DEALLOCATE PREPARE add_res_license_cols;
+
 -- ------------------------------------------------------------
 -- 5. RENTALS
 -- ------------------------------------------------------------
@@ -155,6 +173,10 @@ CREATE TABLE IF NOT EXISTS rentals (
     status               ENUM('Active','Completed','Overdue') NOT NULL DEFAULT 'Active',
     balance              ENUM('Fully Paid') NOT NULL DEFAULT 'Fully Paid',
     remarks              TEXT         NULL,
+    start_mileage        INT UNSIGNED DEFAULT NULL,
+    end_mileage          INT UNSIGNED DEFAULT NULL,
+    start_fuel           VARCHAR(30)  DEFAULT NULL,
+    end_fuel             VARCHAR(30)  DEFAULT NULL,
     PRIMARY KEY (id),
     INDEX idx_rentals_status  (status),
     FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE,
@@ -191,6 +213,19 @@ SET @add_rental_balance = (
 PREPARE add_rental_balance FROM @add_rental_balance;
 EXECUTE add_rental_balance;
 DEALLOCATE PREPARE add_rental_balance;
+
+SET @add_rental_mileage_fuel = (
+    SELECT IF(
+        COUNT(*) = 0,
+        'ALTER TABLE rentals ADD COLUMN start_mileage INT UNSIGNED DEFAULT NULL, ADD COLUMN end_mileage INT UNSIGNED DEFAULT NULL, ADD COLUMN start_fuel VARCHAR(30) DEFAULT NULL, ADD COLUMN end_fuel VARCHAR(30) DEFAULT NULL',
+        'SELECT 1'
+    )
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND table_name = 'rentals' AND column_name = 'start_mileage'
+);
+PREPARE add_rental_mileage_fuel FROM @add_rental_mileage_fuel;
+EXECUTE add_rental_mileage_fuel;
+DEALLOCATE PREPARE add_rental_mileage_fuel;
 
 -- ------------------------------------------------------------
 -- 6. MAINTENANCE
