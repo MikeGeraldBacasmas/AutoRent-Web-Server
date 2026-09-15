@@ -13,11 +13,18 @@ DROP PROCEDURE IF EXISTS sp_login $$
 CREATE PROCEDURE sp_login(IN p_username VARCHAR(100))
 BEGIN
     SELECT u.id, u.username, u.full_name, u.password, u.role, u.is_active,
+           u.license_number, u.license_type, u.license_expiry, u.license_restriction_codes, u.license_front_url, u.license_back_url,
            DATE_FORMAT(u.created_at,'%Y-%m-%d %H:%i:%s') AS created_at,
            DATE_FORMAT(u.updated_at,'%Y-%m-%d %H:%i:%s') AS updated_at,
            r.first_name, r.middle_name, r.last_name, r.gender, r.contact_number, r.address,
            DATE_FORMAT(r.date_of_birth,'%Y-%m-%d') AS date_of_birth,
            r.civil_status,
+           COALESCE(u.license_number, r.license_number) AS license_number_profile,
+           COALESCE(u.license_type, r.license_type) AS license_type_profile,
+           DATE_FORMAT(COALESCE(u.license_expiry, r.license_expiry),'%Y-%m-%d') AS license_expiry_profile,
+           COALESCE(u.license_restriction_codes, r.license_restriction_codes) AS license_restriction_codes_profile,
+           COALESCE(u.license_front_url, r.license_front_url) AS license_front_url_profile,
+           COALESCE(u.license_back_url, r.license_back_url) AS license_back_url_profile,
            DATE_FORMAT(r.submitted_at,'%Y-%m-%d') AS submitted_at
     FROM users u
     LEFT JOIN registration_requests r ON r.approved_user_id = u.id
@@ -33,11 +40,18 @@ DROP PROCEDURE IF EXISTS sp_get_all_users $$
 CREATE PROCEDURE sp_get_all_users()
 BEGIN
     SELECT u.id, u.username, u.full_name, u.role, u.is_active,
+           u.license_number, u.license_type, u.license_expiry, u.license_restriction_codes, u.license_front_url, u.license_back_url,
            DATE_FORMAT(u.created_at,'%Y-%m-%d %H:%i:%s') AS created_at,
            DATE_FORMAT(u.updated_at,'%Y-%m-%d %H:%i:%s') AS updated_at,
            r.first_name, r.middle_name, r.last_name, r.gender, r.contact_number, r.address,
            DATE_FORMAT(r.date_of_birth,'%Y-%m-%d') AS date_of_birth,
            r.civil_status,
+           COALESCE(u.license_number, r.license_number) AS license_number_profile,
+           COALESCE(u.license_type, r.license_type) AS license_type_profile,
+           DATE_FORMAT(COALESCE(u.license_expiry, r.license_expiry),'%Y-%m-%d') AS license_expiry_profile,
+           COALESCE(u.license_restriction_codes, r.license_restriction_codes) AS license_restriction_codes_profile,
+           COALESCE(u.license_front_url, r.license_front_url) AS license_front_url_profile,
+           COALESCE(u.license_back_url, r.license_back_url) AS license_back_url_profile,
            DATE_FORMAT(r.submitted_at,'%Y-%m-%d') AS submitted_at
     FROM users u
     LEFT JOIN registration_requests r ON r.approved_user_id = u.id
@@ -48,11 +62,18 @@ DROP PROCEDURE IF EXISTS sp_get_user_by_id $$
 CREATE PROCEDURE sp_get_user_by_id(IN p_id INT)
 BEGIN
     SELECT u.id, u.username, u.full_name, u.role, u.is_active,
+           u.license_number, u.license_type, u.license_expiry, u.license_restriction_codes, u.license_front_url, u.license_back_url,
            DATE_FORMAT(u.created_at,'%Y-%m-%d %H:%i:%s') AS created_at,
            DATE_FORMAT(u.updated_at,'%Y-%m-%d %H:%i:%s') AS updated_at,
            r.first_name, r.middle_name, r.last_name, r.gender, r.contact_number, r.address,
            DATE_FORMAT(r.date_of_birth,'%Y-%m-%d') AS date_of_birth,
            r.civil_status,
+           COALESCE(u.license_number, r.license_number) AS license_number_profile,
+           COALESCE(u.license_type, r.license_type) AS license_type_profile,
+           DATE_FORMAT(COALESCE(u.license_expiry, r.license_expiry),'%Y-%m-%d') AS license_expiry_profile,
+           COALESCE(u.license_restriction_codes, r.license_restriction_codes) AS license_restriction_codes_profile,
+           COALESCE(u.license_front_url, r.license_front_url) AS license_front_url_profile,
+           COALESCE(u.license_back_url, r.license_back_url) AS license_back_url_profile,
            DATE_FORMAT(r.submitted_at,'%Y-%m-%d') AS submitted_at
     FROM users u
     LEFT JOIN registration_requests r ON r.approved_user_id = u.id
@@ -141,6 +162,8 @@ BEGIN
     SELECT id, last_name, first_name, middle_name, gender, contact_number, address,
            DATE_FORMAT(date_of_birth,'%Y-%m-%d') AS date_of_birth,
            civil_status, status, rejection_reason, approved_user_id,
+           license_number, license_type, DATE_FORMAT(license_expiry,'%Y-%m-%d') AS license_expiry,
+           license_restriction_codes, license_front_url, license_back_url,
            DATE_FORMAT(submitted_at,'%Y-%m-%d') AS submitted_at
     FROM registration_requests
     ORDER BY submitted_at DESC;
@@ -155,18 +178,28 @@ CREATE PROCEDURE sp_create_registration_request(
     IN p_contact_number VARCHAR(30),
     IN p_address        VARCHAR(300),
     IN p_date_of_birth  DATE,
-    IN p_civil_status   VARCHAR(30)
+    IN p_civil_status   VARCHAR(30),
+    IN p_license_number VARCHAR(50),
+    IN p_license_type   VARCHAR(50),
+    IN p_license_expiry DATE,
+    IN p_license_restriction_codes VARCHAR(100),
+    IN p_license_front_url VARCHAR(500),
+    IN p_license_back_url  VARCHAR(500)
 )
 BEGIN
     DECLARE v_id VARCHAR(36);
     SET v_id = UUID();
     INSERT INTO registration_requests
-        (id, last_name, first_name, middle_name, gender, contact_number, address, date_of_birth, civil_status, submitted_at)
+        (id, last_name, first_name, middle_name, gender, contact_number, address, date_of_birth, civil_status,
+         license_number, license_type, license_expiry, license_restriction_codes, license_front_url, license_back_url, submitted_at)
     VALUES
-        (v_id, p_last_name, p_first_name, p_middle_name, p_gender, p_contact_number, p_address, p_date_of_birth, p_civil_status, CURDATE());
+        (v_id, p_last_name, p_first_name, p_middle_name, p_gender, p_contact_number, p_address, p_date_of_birth, p_civil_status,
+         p_license_number, p_license_type, p_license_expiry, p_license_restriction_codes, p_license_front_url, p_license_back_url, CURDATE());
     SELECT id, last_name, first_name, middle_name, gender, contact_number, address,
            DATE_FORMAT(date_of_birth,'%Y-%m-%d') AS date_of_birth,
            civil_status, status,
+           license_number, license_type, DATE_FORMAT(license_expiry,'%Y-%m-%d') AS license_expiry,
+           license_restriction_codes, license_front_url, license_back_url,
            DATE_FORMAT(submitted_at,'%Y-%m-%d') AS submitted_at
     FROM registration_requests WHERE id = v_id;
 END $$
@@ -182,15 +215,23 @@ BEGIN
     DECLARE v_first   VARCHAR(80);
     DECLARE v_middle  VARCHAR(80);
     DECLARE v_user_id INT UNSIGNED;
+    DECLARE v_lic_num VARCHAR(50);
+    DECLARE v_lic_typ VARCHAR(50);
+    DECLARE v_lic_exp DATE;
+    DECLARE v_lic_res VARCHAR(100);
+    DECLARE v_lic_fro VARCHAR(500);
+    DECLARE v_lic_bac VARCHAR(500);
 
-    SELECT last_name, first_name, middle_name
-    INTO v_last, v_first, v_middle
+    SELECT last_name, first_name, middle_name, license_number, license_type, license_expiry, license_restriction_codes, license_front_url, license_back_url
+    INTO v_last, v_first, v_middle, v_lic_num, v_lic_typ, v_lic_exp, v_lic_res, v_lic_fro, v_lic_bac
     FROM registration_requests WHERE id = p_reg_id;
 
-    INSERT INTO users (username, full_name, password, role, is_active)
+    INSERT INTO users (username, full_name, password, role, is_active,
+                       license_number, license_type, license_expiry, license_restriction_codes, license_front_url, license_back_url)
     VALUES (p_username,
             CONCAT(v_first, IF(v_middle != '', CONCAT(' ', v_middle), ''), ' ', v_last),
-            p_password, 'customer', 1);
+            p_password, 'customer', 1,
+            v_lic_num, v_lic_typ, v_lic_exp, v_lic_res, v_lic_fro, v_lic_bac);
 
     SET v_user_id = LAST_INSERT_ID();
 

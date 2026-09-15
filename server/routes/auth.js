@@ -47,6 +47,12 @@ router.post('/login', async (req, res, next) => {
         address: user.address || '',
         dateOfBirth: user.date_of_birth || '',
         civilStatus: user.civil_status || '',
+        licenseNumber: user.license_number_profile || user.license_number || '',
+        licenseType: user.license_type_profile || user.license_type || '',
+        licenseExpiry: user.license_expiry_profile || user.license_expiry || '',
+        licenseRestrictionCodes: user.license_restriction_codes_profile || user.license_restriction_codes || '',
+        licenseFrontUrl: user.license_front_url_profile || user.license_front_url || '',
+        licenseBackUrl: user.license_back_url_profile || user.license_back_url || '',
         submittedAt: user.submitted_at || '',
       }
     });

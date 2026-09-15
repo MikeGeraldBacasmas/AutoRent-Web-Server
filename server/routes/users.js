@@ -26,6 +26,12 @@ function mapUser(u) {
     address: u.address || '',
     dateOfBirth: u.date_of_birth || '',
     civilStatus: u.civil_status || '',
+    licenseNumber: u.license_number_profile || u.license_number || '',
+    licenseType: u.license_type_profile || u.license_type || '',
+    licenseExpiry: u.license_expiry_profile || u.license_expiry || '',
+    licenseRestrictionCodes: u.license_restriction_codes_profile || u.license_restriction_codes || '',
+    licenseFrontUrl: u.license_front_url_profile || u.license_front_url || '',
+    licenseBackUrl: u.license_back_url_profile || u.license_back_url || '',
     submittedAt: u.submitted_at || '',
   };
 }

@@ -1,6 +1,22 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { callProc } from '../db.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import Tesseract from 'tesseract.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const UPLOADS_DIR = path.join(__dirname, '..', 'uploads', 'licenses');
+try {
+  if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  }
+} catch (err) {
+  console.warn('Could not initialize uploads directory:', err);
+}
 
 const router = Router();
 
@@ -19,6 +35,12 @@ function mapRegistration(r) {
     status: r.status ?? 'pending',
     rejectionReason: r.rejection_reason ?? r.rejectionReason ?? undefined,
     approvedUserId: r.approved_user_id ? String(r.approved_user_id) : (r.approvedUserId ? String(r.approvedUserId) : undefined),
+    licenseNumber: r.license_number ?? r.licenseNumber ?? '',
+    licenseType: r.license_type ?? r.licenseType ?? '',
+    licenseExpiry: r.license_expiry ?? r.licenseExpiry ?? '',
+    licenseRestrictionCodes: r.license_restriction_codes ?? r.licenseRestrictionCodes ?? '',
+    licenseFrontUrl: r.license_front_url ?? r.licenseFrontUrl ?? '',
+    licenseBackUrl: r.license_back_url ?? r.licenseBackUrl ?? '',
     submittedAt: r.submitted_at ?? r.submittedAt ?? new Date().toISOString().split('T')[0],
   };
 }
@@ -31,12 +53,115 @@ router.get('/', async (_req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/registrations/upload-license
+router.post('/upload-license', async (req, res) => {
+  try {
+    const { fileData, fileName, fileType } = req.body || {};
+
+    if (!fileData || typeof fileData !== 'string') {
+      return res.status(400).json({ error: 'No file data provided.' });
+    }
+
+    const matches = fileData.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+    let mimeType = fileType || 'image/jpeg';
+    let base64Buffer;
+
+    if (matches && matches.length === 3) {
+      mimeType = matches[1];
+      base64Buffer = Buffer.from(matches[2], 'base64');
+    } else {
+      base64Buffer = Buffer.from(fileData, 'base64');
+    }
+
+    const MAX_SIZE = 5 * 1024 * 1024;
+    if (base64Buffer.length > MAX_SIZE) {
+      return res.status(400).json({ error: 'File size exceeds 5MB limit.' });
+    }
+
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
+
+    const ext = fileName ? path.extname(fileName).toLowerCase() : (mimeType === 'application/pdf' ? '.pdf' : '.jpg');
+    if (!allowedExtensions.includes(ext) && !allowedMimes.includes(mimeType)) {
+      return res.status(400).json({ error: 'Invalid file format.' });
+    }
+
+    const safeExt = allowedExtensions.includes(ext) ? ext : '.jpg';
+    const storedFilename = `license_${Date.now()}_${Math.random().toString(36).substring(2, 10)}${safeExt}`;
+    const targetPath = path.join(UPLOADS_DIR, storedFilename);
+
+    await fs.promises.writeFile(targetPath, base64Buffer);
+
+    // Build full URL so frontend can display the image regardless of which port it runs on
+    const origin = `${req.protocol}://${req.get('host') || 'localhost:4000'}`;
+    const fileUrl = `${origin}/api/reservations/license-file/${storedFilename}`;
+    res.status(201).json({
+      success: true,
+      fileUrl,
+      fileName: fileName || storedFilename,
+      mimeType,
+      sizeBytes: base64Buffer.length,
+    });
+  } catch (err) {
+    console.error('License upload error:', err);
+    res.status(500).json({ error: 'Failed to upload license document.' });
+  }
+});
+
+// POST /api/registrations/ocr
+router.post('/ocr', async (req, res) => {
+  try {
+    const { fileData } = req.body;
+    if (!fileData) return res.status(400).json({ error: 'No image provided for OCR.' });
+    
+    let buffer;
+    const matches = fileData.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+    if (matches && matches.length === 3) {
+      buffer = Buffer.from(matches[2], 'base64');
+    } else {
+      buffer = Buffer.from(fileData, 'base64');
+    }
+
+    const { data: { text } } = await Tesseract.recognize(buffer, 'eng');
+    
+    // Very basic regex-based extraction
+    const numMatch = text.match(/[A-Z0-9]{1,3}-\d{2}-\d{6}/);
+    const licenseNumber = numMatch ? numMatch[0] : '';
+    
+    let licenseType = '';
+    const textUpper = text.toUpperCase();
+    if (textUpper.includes('NON-PRO') || textUpper.includes('NON PRO')) licenseType = 'Non-Professional';
+    else if (textUpper.includes('PRO') || textUpper.includes('PROFESSIONAL')) licenseType = 'Professional';
+    else if (textUpper.includes('STUDENT')) licenseType = 'Student Permit';
+    
+    let licenseExpiry = '';
+    const dateMatch = text.match(/(?:EXP|Expiration|Valid Until).*?(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4}|\d{4}[\/\-\.]\d{2}[\/\-\.]\d{2})/i)
+                   || text.match(/(\d{4}[\/\-\.]\d{2}[\/\-\.]\d{2})/);
+    if (dateMatch) {
+       const rawDate = dateMatch[1].replace(/[\/\-\.]/g, '-');
+       if (rawDate.match(/^\d{4}-\d{2}-\d{2}$/)) licenseExpiry = rawDate;
+    }
+    
+    res.json({
+       licenseNumber,
+       licenseType,
+       licenseExpiry,
+       licenseRestrictionCodes: '',
+       rawText: text
+    });
+  } catch (err) {
+    console.error('OCR error:', err);
+    res.status(500).json({ error: 'OCR failed.' });
+  }
+});
+
 // POST /api/registrations
 router.post('/', async (req, res, next) => {
   try {
-    const { lastName, firstName, middleName, gender, contactNumber, address, dateOfBirth, civilStatus } = req.body;
+    const { lastName, firstName, middleName, gender, contactNumber, address, dateOfBirth, civilStatus, licenseNumber, licenseType, licenseExpiry, licenseRestrictionCodes, licenseFrontUrl, licenseBackUrl } = req.body;
     const rows = await callProc('sp_create_registration_request', [
       lastName, firstName, middleName ?? '', gender, contactNumber, address, dateOfBirth, civilStatus,
+      licenseNumber ?? '', licenseType ?? '', licenseExpiry ?? null, licenseRestrictionCodes ?? '', licenseFrontUrl ?? '', licenseBackUrl ?? ''
     ]);
     res.status(201).json(mapRegistration(rows[0]));
   } catch (err) { next(err); }
