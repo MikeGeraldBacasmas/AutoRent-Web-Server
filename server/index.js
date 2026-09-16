@@ -46,5 +46,5 @@ app.use((err, _req, res, _next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`AutoRent API running on http://localhost:${PORT}`);
+  console.log(`RentRide API running on http://localhost:${PORT}`);
 });

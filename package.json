@@ -1,7 +1,7 @@
 {
   "name": "autorent-web-server",
   "version": "1.0.0",
-  "description": "Backend API server and database for AutoRent",
+  "description": "Backend API server and database for RentRide",
   "type": "module",
   "main": "server/index.js",
   "scripts": {

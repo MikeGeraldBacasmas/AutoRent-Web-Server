@@ -1,13 +1,13 @@
-# AutoRent Web Server & Database
+# RentRide Web Server & Database
 
-Backend REST API server and MySQL database schema/procedures for the AutoRent platform.
+Backend REST API server and MySQL database schema/procedures for the RentRide platform.
 
 ---
 
 ## 📁 Project Structure
 
 ```
-AutoRent-Web-Server/
+RentRide-Web-Server/
 ├── database/
 │   ├── schema.sql       # Database tables, keys, and constraints
 │   ├── procedures.sql   # Stored procedures for business logic

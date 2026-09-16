@@ -1,5 +1,5 @@
 -- ============================================================
--- AutoRent Database Schema
+-- RentRide Database Schema
 -- Engine: MySQL 8.0+ / MariaDB  |  Compatible with SQLyog
 -- ============================================================
 
