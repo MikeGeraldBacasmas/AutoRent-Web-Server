@@ -4,6 +4,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
+import { verifyToken } from '../middleware/authMiddleware.js';
+import { requireRole } from '../middleware/roleMiddleware.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -138,7 +140,7 @@ router.get('/license-file/:filename', async (req, res) => {
 });
 
 // GET /api/reservations
-router.get('/', async (_req, res, next) => {
+router.get('/', verifyToken, async (_req, res, next) => {
   try {
     let rows;
     try {
@@ -152,7 +154,7 @@ router.get('/', async (_req, res, next) => {
 });
 
 // GET /api/reservations/:id
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', verifyToken, async (req, res, next) => {
   try {
     let rows;
     try {
@@ -167,7 +169,7 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // POST /api/reservations
-router.post('/', async (req, res, next) => {
+router.post('/', verifyToken, async (req, res, next) => {
   try {
     const {
       customerId, vehicleId, pickupDate, pickupTime, returnDate, returnTime,
@@ -321,7 +323,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // PATCH /api/reservations/:id
-router.patch('/:id', async (req, res, next) => {
+router.patch('/:id', verifyToken, requireRole(['admin', 'staff']), async (req, res, next) => {
   try {
     const { status, label, gracePeriodMinutes, actualPickupTime, noShowAt, noShowReason } = req.body;
 

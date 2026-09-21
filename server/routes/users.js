@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import pool, { callProc } from '../db.js';
+import { verifyToken } from '../middleware/authMiddleware.js';
+import { requireRole } from '../middleware/roleMiddleware.js';
 
 const router = Router();
 
@@ -37,7 +39,7 @@ function mapUser(u) {
 }
 
 // GET /api/users
-router.get('/', async (_req, res, next) => {
+router.get('/', verifyToken, requireRole(['admin', 'staff']), async (_req, res, next) => {
   try {
     const rows = await callProc('sp_get_all_users');
     res.json((rows || []).map(mapUser));
@@ -45,7 +47,7 @@ router.get('/', async (_req, res, next) => {
 });
 
 // GET /api/users/:id
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', verifyToken, async (req, res, next) => {
   try {
     const rows = await callProc('sp_get_user_by_id', [req.params.id]);
     if (!rows || rows.length === 0) return res.status(404).json({ error: 'User not found.' });
@@ -54,7 +56,7 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // POST /api/users (Hashes password before storing in MySQL)
-router.post('/', async (req, res, next) => {
+router.post('/', verifyToken, requireRole(['admin']), async (req, res, next) => {
   try {
     const { username, password, role, status, isActive } = req.body;
     const fullName = req.body.fullName || req.body.name || [req.body.firstName, req.body.lastName].filter(Boolean).join(' ') || username;
@@ -71,7 +73,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // PATCH /api/users/:id
-router.patch('/:id', async (req, res, next) => {
+router.patch('/:id', verifyToken, async (req, res, next) => {
   try {
     const {
       username, password, currentPassword, role: _role, status, isActive,
@@ -133,7 +135,7 @@ router.patch('/:id', async (req, res, next) => {
 });
 
 // PATCH /api/users/:id/toggle-status
-router.patch('/:id/toggle-status', async (req, res, next) => {
+router.patch('/:id/toggle-status', verifyToken, requireRole(['admin']), async (req, res, next) => {
   try {
     const rows = await callProc('sp_toggle_user_status', [req.params.id]);
     res.json(mapUser(rows[0]));
@@ -141,7 +143,7 @@ router.patch('/:id/toggle-status', async (req, res, next) => {
 });
 
 // DELETE /api/users/:id
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', verifyToken, requireRole(['admin']), async (req, res, next) => {
   try {
     await callProc('sp_delete_user', [req.params.id]);
     res.json({ success: true });
