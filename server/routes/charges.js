@@ -5,7 +5,7 @@ const router = Router();
 
 function mapCharge(c) {
   return {
-    id: String(c.id), rentalId: String(c.rental_id), customerId: String(c.customer_id),
+    id: String(c.id), rentalId: String(c.rental_id), customerId: String(c.customer_id), customerName: c.customer_name,
     vehicleId: String(c.vehicle_id), description: c.description ?? '', amount: Number(c.amount ?? 0),
     status: c.status ?? 'Unpaid', paidAt: c.paid_at ?? undefined, createdAt: c.created_at,
   };

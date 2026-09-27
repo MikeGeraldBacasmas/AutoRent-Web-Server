@@ -4,11 +4,11 @@ import { callProc } from '../db.js';
 const router = Router();
 
 const mapBilling = b => ({
-  id: String(b.id), reservationId: String(b.reservation_id), customerId: String(b.customer_id),
+  id: String(b.id), reservationId: String(b.reservation_id), customerId: String(b.customer_id), customerName: b.customer_name,
   totalAmount: Number(b.total_amount), status: b.status, createdAt: b.created_at,
 });
 const mapPayment = p => ({
-  id: String(p.id), billingId: String(p.billing_id), customerId: String(p.customer_id),
+  id: String(p.id), billingId: String(p.billing_id), customerId: String(p.customer_id), customerName: p.customer_name,
   amount: Number(p.amount), changeAmount: Number(p.change_amount), paymentMethod: p.payment_method, paidAt: p.paid_at,
 });
 

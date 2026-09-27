@@ -576,10 +576,13 @@ END $$
 DROP PROCEDURE IF EXISTS sp_get_all_charges $$
 CREATE PROCEDURE sp_get_all_charges()
 BEGIN
-    SELECT id, rental_id, customer_id, vehicle_id, description, amount, status,
-           DATE_FORMAT(paid_at, '%Y-%m-%d %H:%i:%s') AS paid_at,
-           DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at
-    FROM charges ORDER BY created_at DESC;
+    SELECT c.id, c.rental_id, c.customer_id, c.vehicle_id, c.description, c.amount, c.status,
+           DATE_FORMAT(c.paid_at, '%Y-%m-%d %H:%i:%s') AS paid_at,
+           DATE_FORMAT(c.created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
+           COALESCE(u.full_name, u.username) AS customer_name
+    FROM charges c
+    LEFT JOIN users u ON c.customer_id = u.id
+    ORDER BY c.created_at DESC;
 END $$
 
 DROP PROCEDURE IF EXISTS sp_create_charge $$
@@ -613,8 +616,11 @@ DROP PROCEDURE IF EXISTS sp_get_all_billings $$
 CREATE PROCEDURE sp_get_all_billings()
 BEGIN
     SELECT b.id, b.reservation_id, b.customer_id, b.total_amount, b.status,
-           DATE_FORMAT(b.created_at, '%Y-%m-%d %H:%i:%s') AS created_at
-    FROM billings b ORDER BY b.created_at DESC;
+           DATE_FORMAT(b.created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
+           COALESCE(u.full_name, u.username) AS customer_name
+    FROM billings b
+    LEFT JOIN users u ON b.customer_id = u.id
+    ORDER BY b.created_at DESC;
 END $$
 
 DROP PROCEDURE IF EXISTS sp_create_billing $$
@@ -635,9 +641,12 @@ END $$
 DROP PROCEDURE IF EXISTS sp_get_all_payments $$
 CREATE PROCEDURE sp_get_all_payments()
 BEGIN
-    SELECT id, billing_id, customer_id, amount, change_amount, payment_method,
-           DATE_FORMAT(paid_at, '%Y-%m-%d %H:%i:%s') AS paid_at
-    FROM payments ORDER BY paid_at DESC;
+    SELECT p.id, p.billing_id, p.customer_id, p.amount, p.change_amount, p.payment_method,
+           DATE_FORMAT(p.paid_at, '%Y-%m-%d %H:%i:%s') AS paid_at,
+           COALESCE(u.full_name, u.username) AS customer_name
+    FROM payments p
+    LEFT JOIN users u ON p.customer_id = u.id
+    ORDER BY p.paid_at DESC;
 END $$
 
 DROP PROCEDURE IF EXISTS sp_create_payment $$
