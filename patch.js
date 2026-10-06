@@ -13,7 +13,9 @@ async function patch() {
       ADD COLUMN registered_owner VARCHAR(150) NULL,
       ADD COLUMN insurance_provider VARCHAR(150) NULL,
       ADD COLUMN insurance_policy_number VARCHAR(100) NULL,
-      ADD COLUMN insurance_expiry DATE NULL;
+      ADD COLUMN insurance_expiry DATE NULL,
+      ADD COLUMN color VARCHAR(50) NULL,
+      ADD COLUMN displacement VARCHAR(50) NULL;
     `);
   } catch(e) { console.log(e.message); }
 
@@ -26,6 +28,7 @@ BEGIN
            or_image, cr_image, DATE_FORMAT(registration_expiry,'%Y-%m-%d') AS registration_expiry,
            chassis_number, engine_number, mv_file_number, registered_owner,
            insurance_provider, insurance_policy_number, DATE_FORMAT(insurance_expiry,'%Y-%m-%d') AS insurance_expiry,
+           color, displacement,
            DATE_FORMAT(created_at,'%Y-%m-%d') AS created_at
     FROM vehicles
     ORDER BY created_at DESC;
@@ -39,6 +42,7 @@ BEGIN
            or_image, cr_image, DATE_FORMAT(registration_expiry,'%Y-%m-%d') AS registration_expiry,
            chassis_number, engine_number, mv_file_number, registered_owner,
            insurance_provider, insurance_policy_number, DATE_FORMAT(insurance_expiry,'%Y-%m-%d') AS insurance_expiry,
+           color, displacement,
            DATE_FORMAT(created_at,'%Y-%m-%d') AS created_at
     FROM vehicles WHERE id = p_id;
 END;`);
@@ -67,7 +71,9 @@ END;`);
     IN p_owner         VARCHAR(150),
     IN p_ins_prov      VARCHAR(150),
     IN p_ins_pol       VARCHAR(100),
-    IN p_ins_exp       DATE
+    IN p_ins_exp       DATE,
+    IN p_color         VARCHAR(50),
+    IN p_displacement  VARCHAR(50)
 )
 BEGIN
     DECLARE v_id VARCHAR(36);
@@ -75,10 +81,10 @@ BEGIN
     INSERT INTO vehicles (id, name, brand, model, year, type, license_plate, seats, transmission,
                           fuel_type, price_per_day, description, image, status, created_at,
                           or_image, cr_image, registration_expiry, chassis_number, engine_number, mv_file_number,
-                          registered_owner, insurance_provider, insurance_policy_number, insurance_expiry)
+                          registered_owner, insurance_provider, insurance_policy_number, insurance_expiry, color, displacement)
     VALUES (v_id, p_name, p_brand, p_model, p_year, p_type, p_license_plate, p_seats, p_transmission,
             p_fuel_type, p_price_per_day, p_description, p_image, p_status, CURDATE(),
-            p_or, p_cr, p_reg_exp, p_chassis, p_engine, p_mv, p_owner, p_ins_prov, p_ins_pol, p_ins_exp);
+            p_or, p_cr, p_reg_exp, p_chassis, p_engine, p_mv, p_owner, p_ins_prov, p_ins_pol, p_ins_exp, p_color, p_displacement);
     CALL sp_get_vehicle_by_id(v_id);
 END;`);
 
@@ -107,7 +113,9 @@ END;`);
     IN p_owner         VARCHAR(150),
     IN p_ins_prov      VARCHAR(150),
     IN p_ins_pol       VARCHAR(100),
-    IN p_ins_exp       DATE
+    IN p_ins_exp       DATE,
+    IN p_color         VARCHAR(50),
+    IN p_displacement  VARCHAR(50)
 )
 BEGIN
     UPDATE vehicles
@@ -133,7 +141,9 @@ BEGIN
         registered_owner = COALESCE(p_owner,      registered_owner),
         insurance_provider = COALESCE(p_ins_prov, insurance_provider),
         insurance_policy_number = COALESCE(p_ins_pol, insurance_policy_number),
-        insurance_expiry = COALESCE(p_ins_exp,    insurance_expiry)
+        insurance_expiry = COALESCE(p_ins_exp,    insurance_expiry),
+        color = COALESCE(p_color, color),
+        displacement = COALESCE(p_displacement, displacement)
     WHERE id = p_id;
     CALL sp_get_vehicle_by_id(p_id);
 END;`);
