@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { callProc } from '../db.js';
+import { JWT_SECRET } from '../config.js';
 
 const router = Router();
 
@@ -27,28 +29,44 @@ router.post('/login', async (req, res, next) => {
 
     // Map to frontend-friendly shape; never send password
     const isActive = user.is_active === 1 || user.is_active === true;
+    const userData = {
+      id: String(user.id),
+      username: user.username,
+      name: user.full_name || user.username,
+      fullName: user.full_name || user.username,
+      role: user.role,
+      status: isActive ? 'active' : 'inactive',
+      isActive,
+      createdAt: user.created_at || '',
+      updatedAt: user.updated_at || '',
+      firstName: user.first_name || '',
+      middleName: user.middle_name || '',
+      lastName: user.last_name || '',
+      gender: user.gender || '',
+      contactNumber: user.contact_number || '',
+      phone: user.contact_number || '',
+      address: user.address || '',
+      dateOfBirth: user.date_of_birth || '',
+      civilStatus: user.civil_status || '',
+      licenseNumber: user.license_number_profile || user.license_number || '',
+      licenseType: user.license_type_profile || user.license_type || '',
+      licenseExpiry: user.license_expiry_profile || user.license_expiry || '',
+      licenseRestrictionCodes: user.license_restriction_codes_profile || user.license_restriction_codes || '',
+      licenseFrontUrl: user.license_front_url_profile || user.license_front_url || '',
+      licenseBackUrl: user.license_back_url_profile || user.license_back_url || '',
+      submittedAt: user.submitted_at || '',
+    };
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: userData.id, role: userData.role },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
     res.json({
-      user: {
-        id: String(user.id),
-        username: user.username,
-        name: user.full_name || user.username,
-        fullName: user.full_name || user.username,
-        role: user.role,
-        status: isActive ? 'active' : 'inactive',
-        isActive,
-        createdAt: user.created_at || '',
-        updatedAt: user.updated_at || '',
-        firstName: user.first_name || '',
-        middleName: user.middle_name || '',
-        lastName: user.last_name || '',
-        gender: user.gender || '',
-        contactNumber: user.contact_number || '',
-        phone: user.contact_number || '',
-        address: user.address || '',
-        dateOfBirth: user.date_of_birth || '',
-        civilStatus: user.civil_status || '',
-        submittedAt: user.submitted_at || '',
-      }
+      user: userData,
+      token
     });
   } catch (err) { next(err); }
 });

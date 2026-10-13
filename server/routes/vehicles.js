@@ -20,6 +20,18 @@ function mapVehicle(v) {
     description: v.description ?? '',
     image: v.image ?? '',
     status: v.status ?? 'Available',
+    orImage: v.or_image ?? v.orImage ?? '',
+    crImage: v.cr_image ?? v.crImage ?? '',
+    registrationExpiry: v.registration_expiry ?? v.registrationExpiry ?? '',
+    chassisNumber: v.chassis_number ?? v.chassisNumber ?? '',
+    engineNumber: v.engine_number ?? v.engineNumber ?? '',
+    mvFileNumber: v.mv_file_number ?? v.mvFileNumber ?? '',
+    registeredOwner: v.registered_owner ?? v.registeredOwner ?? '',
+    insuranceProvider: v.insurance_provider ?? v.insuranceProvider ?? '',
+    insurancePolicyNumber: v.insurance_policy_number ?? v.insurancePolicyNumber ?? '',
+    insuranceExpiry: v.insurance_expiry ?? v.insuranceExpiry ?? '',
+    color: v.color ?? '',
+    displacement: v.displacement ?? '',
     createdAt: v.created_at ?? v.createdAt ?? new Date().toISOString().split('T')[0],
   };
 }
@@ -45,10 +57,15 @@ router.get('/:id', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const { name, brand, model, year, type, licensePlate, seats, transmission,
-            fuelType, pricePerDay, description, image, status } = req.body;
+            fuelType, pricePerDay, description, image, status,
+            orImage, crImage, registrationExpiry, chassisNumber, engineNumber, mvFileNumber,
+            registeredOwner, insuranceProvider, insurancePolicyNumber, insuranceExpiry, color, displacement } = req.body;
     const rows = await callProc('sp_create_vehicle', [
       name, brand, model, year, type, licensePlate, seats,
       transmission, fuelType, pricePerDay, description ?? '', image ?? '', status ?? 'Available',
+      orImage ?? null, crImage ?? null, registrationExpiry || null, chassisNumber ?? null, engineNumber ?? null, mvFileNumber ?? null,
+      registeredOwner ?? null, insuranceProvider ?? null, insurancePolicyNumber ?? null, insuranceExpiry || null,
+      color ?? null, displacement ?? null
     ]);
     res.status(201).json(mapVehicle(rows[0]));
   } catch (err) { next(err); }
@@ -58,12 +75,17 @@ router.post('/', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
   try {
     const { name, brand, model, year, type, licensePlate, seats, transmission,
-            fuelType, pricePerDay, description, image, status } = req.body;
+            fuelType, pricePerDay, description, image, status,
+            orImage, crImage, registrationExpiry, chassisNumber, engineNumber, mvFileNumber,
+            registeredOwner, insuranceProvider, insurancePolicyNumber, insuranceExpiry, color, displacement } = req.body;
     const rows = await callProc('sp_update_vehicle', [
       req.params.id,
       name ?? null, brand ?? null, model ?? null, year ?? null, type ?? null,
       licensePlate ?? null, seats ?? null, transmission ?? null, fuelType ?? null,
       pricePerDay ?? null, description ?? null, image ?? null, status ?? null,
+      orImage ?? null, crImage ?? null, registrationExpiry || null, chassisNumber ?? null, engineNumber ?? null, mvFileNumber ?? null,
+      registeredOwner ?? null, insuranceProvider ?? null, insurancePolicyNumber ?? null, insuranceExpiry || null,
+      color ?? null, displacement ?? null
     ]);
     res.json(mapVehicle(rows[0]));
   } catch (err) { next(err); }
