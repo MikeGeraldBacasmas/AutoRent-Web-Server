@@ -95,3 +95,35 @@ npm install
 
 API will be accessible at: `http://localhost:4000/api`
 Health check: `http://localhost:4000/api/health`
+
+---
+
+## ☁️ Deploying to Render
+
+This server is pre-configured and ready for [Render](https://render.com).
+
+### Option A: Using Render Blueprint (`render.yaml`)
+1. Push your repository to GitHub.
+2. In your Render Dashboard, click **New +** -> **Blueprint**.
+3. Select your repository.
+4. Render will read `render.yaml` and configure the web service automatically.
+5. In the prompts, fill in your database credentials (`DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `CLIENT_ORIGIN`).
+
+### Option B: Manual Web Service Setup
+1. In Render Dashboard, click **New +** -> **Web Service**.
+2. Connect your GitHub repository.
+3. Configure the service settings:
+   - **Environment:** `Node`
+   - **Build Command:** `npm install`
+   - **Start Command:** `npm start`
+   - **Health Check Path:** `/api/health`
+4. Under **Environment Variables**, add:
+   - `DB_HOST`: Your database host (e.g. `195.35.61.31`)
+   - `DB_PORT`: `3306`
+   - `DB_USER`: Your database username (e.g. `u463580331_vrent`)
+   - `DB_PASSWORD`: Your database password
+   - `DB_NAME`: `u463580331_vrent_db`
+   - `JWT_SECRET`: A secure random secret string
+   - `CLIENT_ORIGIN`: Your frontend URL (e.g. `https://your-frontend.onrender.com` or `*`)
+   - `NODE_ENV`: `production`
+5. Click **Deploy Web Service**.

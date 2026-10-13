@@ -23,16 +23,18 @@ export const dbConfig = {
   user:     required('DB_USER'),
   password: required('DB_PASSWORD'),
   database: required('DB_NAME'),
+  ...(process.env.DB_SSL === 'true' ? { ssl: { rejectUnauthorized: false } } : {}),
 };
 
 export const JWT_SECRET = required('JWT_SECRET');
 
-export const SERVER_PORT = process.env.SERVER_PORT || 4000;
+// Render automatically injects process.env.PORT (e.g., 10000). Fallback to SERVER_PORT or 4000.
+export const SERVER_PORT = Number(process.env.PORT || process.env.SERVER_PORT) || 4000;
 
-export const CLIENT_ORIGINS = (process.env.CLIENT_ORIGIN || 'http://localhost:8443')
-  .split(',')
-  .map((o) => o.trim())
-  .filter(Boolean);
+const rawOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:8443';
+export const CLIENT_ORIGINS = rawOrigin.trim() === '*'
+  ? '*'
+  : rawOrigin.split(',').map((o) => o.trim().replace(/\/+$/, '')).filter(Boolean);
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 
