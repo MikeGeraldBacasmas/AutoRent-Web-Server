@@ -2,23 +2,19 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import mysql from 'mysql2/promise';
-import dotenv from 'dotenv';
+import { dbConfig, assertSafeToModify } from '../server/config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
-dotenv.config({ path: path.join(rootDir, '.env') });
-
 const config = {
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER || 'vr',
-  password: process.env.DB_PASSWORD || 'vr',
+  ...dbConfig,
   multipleStatements: true,
 };
 
 async function main() {
+  assertSafeToModify('setup-db.js');
   console.log(`Connecting to MySQL at ${config.host}:${config.port} as user '${config.user}'...`);
 
   let connection;
@@ -32,10 +28,8 @@ async function main() {
   }
 
   try {
-    const dbName = process.env.DB_NAME || 'vr';
-    console.log(`Creating database '${dbName}' if it doesn't exist...`);
-    await connection.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`);
-    await connection.query(`USE \`${dbName}\`;`);
+    const dbName = dbConfig.database;
+    console.log(`Using database '${dbName}' (must already exist).`);
 
     // 1. Run schema.sql
     const schemaPath = path.join(rootDir, 'database', 'schema.sql');

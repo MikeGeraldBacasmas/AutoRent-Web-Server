@@ -38,36 +38,43 @@ RentRide-Web-Server/
 - [MySQL Server](https://dev.mysql.com/downloads/mysql/) (v8.0+)
 
 ### 2. Database Initialization
-Create the database and execute the SQL scripts in order:
+Create (or use) your database, then run the SQL scripts against it, in order
+(replace `<database>` e.g. with `u463580331_vrent_db`):
 
 ```bash
-# 1. Create schema and tables
-mysql -u root -p < database/schema.sql
+# 1. Create tables
+mysql -h <host> -u <user> -p <database> < database/schema.sql
 
 # 2. Create stored procedures
-mysql -u root -p autorent < database/procedures.sql
+mysql -h <host> -u <user> -p <database> < database/procedures.sql
 
 # 3. (Optional) Load sample seed data
-mysql -u root -p autorent < database/seed.sql
+mysql -h <host> -u <user> -p <database> < database/seed.sql
 ```
 
+Alternatively `npm run setup-db` runs all three using the credentials in `.env`.
+Scripts that modify data (`setup-db`, `clean-db`) refuse to run against a remote host
+unless you pass `--force` (e.g. `npm run setup-db -- --force`).
+
 ### 3. Environment Configuration
-Copy the `.env.example` file to `.env` and fill in your MySQL credentials:
+Copy the `.env.example` file to `.env` and fill in your MySQL credentials.
+`.env` is gitignored — **never commit it**.
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env`:
+Edit `.env` (all `DB_*` values and `JWT_SECRET` are required):
 ```env
 SERVER_PORT=4000
-CLIENT_ORIGIN=http://localhost:8443
+CLIENT_ORIGIN=http://localhost:8443   # comma-separated for multiple origins
+JWT_SECRET=<long random string>
 
-DB_HOST=localhost
+DB_HOST=<your db host>
 DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=your_mysql_password
-DB_NAME=autorent
+DB_USER=<your db user>
+DB_PASSWORD=<your db password>
+DB_NAME=u463580331_vrent_db
 ```
 
 ### 4. Install Dependencies

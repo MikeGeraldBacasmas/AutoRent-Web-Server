@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
-dotenv.config();
+import { SERVER_PORT, CLIENT_ORIGINS } from './config.js';
 
 import authRoutes          from './routes/auth.js';
 import usersRoutes         from './routes/users.js';
@@ -16,9 +15,9 @@ import billingRoutes from './routes/billing.js';
 import chargesRoutes from './routes/charges.js';
 
 const app  = express();
-const PORT = process.env.SERVER_PORT || 4000;
+const PORT = SERVER_PORT;
 
-app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:8443' }));
+app.use(cors({ origin: CLIENT_ORIGINS }));
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ limit: '25mb', extended: true }));
 

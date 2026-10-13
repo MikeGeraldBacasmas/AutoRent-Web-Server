@@ -1,22 +1,11 @@
 import mysql from 'mysql2/promise';
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const rootDir = path.resolve(__dirname, '..');
-
-dotenv.config({ path: path.join(rootDir, '.env') });
+import { dbConfig, assertSafeToModify } from '../server/config.js';
 
 async function cleanDb() {
+  assertSafeToModify('clean-mock-data.js');
   const pool = mysql.createPool({
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'vr',
-    password: process.env.DB_PASSWORD || 'vr',
-    database: process.env.DB_NAME || 'vr',
+    ...dbConfig,
     multipleStatements: true,
   });
 

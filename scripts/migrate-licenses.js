@@ -2,24 +2,19 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import mysql from 'mysql2/promise';
-import dotenv from 'dotenv';
+import { dbConfig, assertSafeToModify } from '../server/config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
-dotenv.config({ path: path.join(rootDir, '.env') });
-
 const config = {
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER || 'vr',
-  password: process.env.DB_PASSWORD || 'vr',
-  database: process.env.DB_NAME || 'vr',
+  ...dbConfig,
   multipleStatements: true,
 };
 
 async function main() {
+  assertSafeToModify('migrate-licenses.js');
   let connection;
   try {
     connection = await mysql.createConnection(config);
