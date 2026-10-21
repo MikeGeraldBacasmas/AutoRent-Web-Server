@@ -46,7 +46,19 @@ app.use(express.urlencoded({ limit: '25mb', extended: true }));
 // Health check endpoints for Render and monitoring
 app.get('/', (_req, res) => res.json({ status: 'ok', service: 'AutoRent API', timestamp: new Date().toISOString() }));
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
-app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+app.get('/api/health', async (_req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT DATABASE() AS current_database');
+    res.json({
+      status: 'ok',
+      service: 'AutoRent API',
+      database: rows[0]?.current_database || 'unknown',
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    res.status(500).json({ status: 'error', error: err.message });
+  }
+});
 
 // Routes
 app.use('/api/auth',          authRoutes);
