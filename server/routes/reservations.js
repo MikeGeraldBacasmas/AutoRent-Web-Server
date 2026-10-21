@@ -229,6 +229,21 @@ router.post('/', verifyToken, async (req, res, next) => {
       });
     }
 
+    // Check if customer has any unpaid charges/penalties
+    try {
+      const [unpaidCharges] = await pool.query(
+        `SELECT 1 FROM charges WHERE customer_id = ? AND status != 'Paid' LIMIT 1`,
+        [customerId]
+      );
+      if (unpaidCharges && unpaidCharges.length > 0) {
+        return res.status(400).json({
+          error: 'Customer has unpaid charges/penalties and cannot rent another vehicle until all payments are settled.',
+        });
+      }
+    } catch (chargeErr) {
+      console.warn('Could not check charges table:', chargeErr.message);
+    }
+
     // Check for vehicle overlapping active/approved/reserved reservations
     const [overlapRows] = await pool.query(
       `SELECT id, pickup_date, return_date, status

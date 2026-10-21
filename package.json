@@ -8,7 +8,9 @@
     "start": "node server/index.js",
     "dev": "nodemon server/index.js",
     "setup-db": "node scripts/setup-db.js",
-    "clean-db": "node scripts/clean-mock-data.js"
+    "clean-db": "node scripts/clean-mock-data.js",
+    "migrate-backup": "node scripts/migrate-from-backup.js",
+    "verify-db": "node scripts/verify-migration.js"
   },
   "engines": {
     "node": ">=18.0.0"
