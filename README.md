@@ -116,14 +116,16 @@ This server is pre-configured and ready for [Render](https://render.com).
    - **Environment:** `Node`
    - **Build Command:** `npm install`
    - **Start Command:** `npm start`
-   - **Health Check Path:** `/api/health`
+   - **Health Check Path:** `/health`
 4. Under **Environment Variables**, add:
    - `DB_HOST`: Your database host (e.g. `195.35.61.31`)
    - `DB_PORT`: `3306`
    - `DB_USER`: Your database username (e.g. `u463580331_vrent`)
    - `DB_PASSWORD`: Your database password
    - `DB_NAME`: `u463580331_vrent_db`
+   - `DB_SSL`: `false` (or `true` if your cloud database requires SSL)
    - `JWT_SECRET`: A secure random secret string
    - `CLIENT_ORIGIN`: Your frontend URL (e.g. `https://your-frontend.onrender.com` or `*`)
    - `NODE_ENV`: `production`
+   - `NODE_VERSION`: `20.18.0`
 5. Click **Deploy Web Service**.

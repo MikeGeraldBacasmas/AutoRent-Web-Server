@@ -7,9 +7,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Always load <project root>/.env regardless of the process working directory.
 dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 
-function required(name) {
+function required(name, allowEmpty = false) {
   const value = process.env[name];
-  if (value === undefined || value === '') {
+  if (value === undefined || (!allowEmpty && String(value).trim() === '')) {
     throw new Error(
       `Missing required environment variable "${name}". Copy .env.example to .env and fill it in.`
     );
@@ -21,7 +21,7 @@ export const dbConfig = {
   host:     required('DB_HOST'),
   port:     Number(process.env.DB_PORT) || 3306,
   user:     required('DB_USER'),
-  password: required('DB_PASSWORD'),
+  password: process.env.DB_PASSWORD !== undefined ? process.env.DB_PASSWORD : required('DB_PASSWORD', true),
   database: required('DB_NAME'),
   ...(process.env.DB_SSL === 'true' ? { ssl: { rejectUnauthorized: false } } : {}),
 };

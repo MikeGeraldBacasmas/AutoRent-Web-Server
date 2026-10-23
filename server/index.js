@@ -34,7 +34,7 @@ const corsOptions = {
       return callback(null, true);
     }
     console.warn(`[CORS] Blocked request from unauthorized origin: ${origin}. Allowed:`, CLIENT_ORIGINS);
-    return callback(new Error(`Origin ${origin} not allowed by CORS`));
+    return callback(null, false);
   },
   credentials: true,
 };
@@ -45,18 +45,24 @@ app.use(express.urlencoded({ limit: '25mb', extended: true }));
 
 // Health check endpoints for Render and monitoring
 app.get('/', (_req, res) => res.json({ status: 'ok', service: 'AutoRent API', timestamp: new Date().toISOString() }));
-app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'AutoRent API', timestamp: new Date().toISOString() }));
 app.get('/api/health', async (_req, res) => {
   try {
     const [rows] = await pool.query('SELECT DATABASE() AS current_database');
     res.json({
       status: 'ok',
       service: 'AutoRent API',
-      database: rows[0]?.current_database || 'unknown',
+      database: rows[0]?.current_database || 'connected',
       timestamp: new Date().toISOString()
     });
   } catch (err) {
-    res.status(500).json({ status: 'error', error: err.message });
+    res.status(503).json({
+      status: 'degraded',
+      service: 'AutoRent API',
+      database: 'disconnected',
+      error: err.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
