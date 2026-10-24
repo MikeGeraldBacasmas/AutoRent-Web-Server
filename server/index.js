@@ -21,22 +21,16 @@ const PORT = SERVER_PORT;
 // Trust proxy header when running behind Render / reverse proxy
 app.set('trust proxy', 1);
 
-// CORS configuration supporting single origin, list of origins, or wildcard '*'
+// CORS configuration: allow all origins (local dev, Hostinger, previews, mobile)
 const corsOptions = {
   origin: (origin, callback) => {
-    // Allow non-browser requests (e.g. mobile apps, curl, uptime bots)
-    if (!origin) return callback(null, true);
-    if (CLIENT_ORIGINS === '*' || (Array.isArray(CLIENT_ORIGINS) && CLIENT_ORIGINS.includes('*'))) {
-      return callback(null, true);
-    }
-    const normalized = origin.replace(/\/+$/, '');
-    if (Array.isArray(CLIENT_ORIGINS) && CLIENT_ORIGINS.some((allowed) => allowed.replace(/\/+$/, '') === normalized)) {
-      return callback(null, true);
-    }
-    console.warn(`[CORS] Blocked request from unauthorized origin: ${origin}. Allowed:`, CLIENT_ORIGINS);
-    return callback(null, false);
+    // Allow non-browser requests and reflect any browser origin so local dev,
+    // Hostinger, preview URLs, and production domains are never blocked.
+    return callback(null, true);
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
 };
 
 app.use(cors(corsOptions));
