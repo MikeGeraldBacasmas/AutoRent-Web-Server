@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { callProc } from '../db.js';
+import pool, { callProc } from '../db.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -155,10 +155,100 @@ router.post('/ocr', async (req, res) => {
   }
 });
 
+// GET /api/registrations/check-license?licenseNumber=...
+router.get('/check-license', async (req, res, next) => {
+  try {
+    const rawNumber = req.query.licenseNumber;
+    if (!rawNumber || typeof rawNumber !== 'string') {
+      return res.status(400).json({ error: 'License number is required.' });
+    }
+
+    const clean = rawNumber.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!clean) {
+      return res.json({ exists: false });
+    }
+
+    // 1. Check users table
+    const [existingUsers] = await pool.query(
+      `SELECT id, username, full_name, is_active FROM users 
+       WHERE REPLACE(REPLACE(IFNULL(license_number, ''), '-', ''), ' ', '') = ? 
+       LIMIT 1`,
+      [clean]
+    );
+
+    if (existingUsers && existingUsers.length > 0) {
+      return res.json({
+        exists: true,
+        type: 'registered',
+        message: "This driver's license number is already registered to an account. If this is your account, please log in."
+      });
+    }
+
+    // 2. Check pending / approved registration requests
+    const [existingReqs] = await pool.query(
+      `SELECT id, status, first_name, last_name FROM registration_requests 
+       WHERE REPLACE(REPLACE(IFNULL(license_number, ''), '-', ''), ' ', '') = ? 
+         AND status IN ('pending', 'approved')
+       LIMIT 1`,
+      [clean]
+    );
+
+    if (existingReqs && existingReqs.length > 0) {
+      const isApproved = existingReqs[0].status === 'approved';
+      return res.json({
+        exists: true,
+        type: isApproved ? 'registered' : 'pending',
+        message: isApproved
+          ? "This driver's license is already associated with an approved account. Please log in."
+          : "An application with this driver's license number is already pending review by the administrator."
+      });
+    }
+
+    return res.json({ exists: false });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/registrations
 router.post('/', async (req, res, next) => {
   try {
     const { lastName, firstName, middleName, gender, contactNumber, address, dateOfBirth, civilStatus, licenseNumber, licenseType, licenseExpiry, licenseRestrictionCodes, licenseFrontUrl, licenseBackUrl } = req.body;
+
+    // Validate duplicate driver's license before creating request
+    if (licenseNumber) {
+      const clean = String(licenseNumber).trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (clean) {
+        const [existingUsers] = await pool.query(
+          `SELECT id FROM users 
+           WHERE REPLACE(REPLACE(IFNULL(license_number, ''), '-', ''), ' ', '') = ? 
+           LIMIT 1`,
+          [clean]
+        );
+        if (existingUsers && existingUsers.length > 0) {
+          return res.status(409).json({
+            error: "This driver's license number is already registered to an existing account. Please log in or contact support."
+          });
+        }
+
+        const [existingReqs] = await pool.query(
+          `SELECT id, status FROM registration_requests 
+           WHERE REPLACE(REPLACE(IFNULL(license_number, ''), '-', ''), ' ', '') = ? 
+             AND status IN ('pending', 'approved')
+           LIMIT 1`,
+          [clean]
+        );
+        if (existingReqs && existingReqs.length > 0) {
+          const isApproved = existingReqs[0].status === 'approved';
+          return res.status(409).json({
+            error: isApproved
+              ? "This driver's license number is already registered to an approved account. Please log in."
+              : "A registration request with this driver's license number is already pending administrator review."
+          });
+        }
+      }
+    }
+
     const rows = await callProc('sp_create_registration_request', [
       lastName, firstName, middleName ?? '', gender, contactNumber, address, dateOfBirth, civilStatus,
       licenseNumber ?? '', licenseType ?? '', licenseExpiry ?? null, licenseRestrictionCodes ?? '', licenseFrontUrl ?? '', licenseBackUrl ?? ''
