@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import pool, { callProc } from '../db.js';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Tesseract from 'tesseract.js';
@@ -9,7 +10,9 @@ import Tesseract from 'tesseract.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const UPLOADS_DIR = path.join(__dirname, '..', 'uploads', 'licenses');
+const UPLOADS_DIR = process.env.VERCEL
+  ? path.join(os.tmpdir(), 'autorent-uploads', 'licenses')
+  : path.join(__dirname, '..', 'uploads', 'licenses');
 try {
   if (!fs.existsSync(UPLOADS_DIR)) {
     fs.mkdirSync(UPLOADS_DIR, { recursive: true });
